@@ -2,6 +2,10 @@
 
 A front-end prototype based on the supplied PRD and brand assets. The visitor and admin experiences run together in one browser page so the end-to-end demo can share fictional records.
 
+## Preview path
+
+Open `index.html` in a modern browser. The prototype uses a shared inline SVG icon set for navigation, booking, and admin controls.
+
 ## Open and walk through it
 
 1. Open `prototype/index.html` in a modern browser.
@@ -29,5 +33,6 @@ New demo records are stored in this browser’s local storage so the visitor flo
 This is not the production application. The PRD’s Next.js, Node/Express, PostgreSQL/Prisma, Google Apps Script, and Paystack services are not implemented. The dashboard simulates those workflows with local demo data. Admin access is intentionally open in this preview and is not protected by a production login.
 
 The PRD describes anonymous messages without identity/IP markers and separately asks for client IP collection for leads. Agree the real privacy, consent, retention, access, and publication rules before implementing the backend. Clinician credentials, service location, pricing, appointment availability, and business contact details also need firm-approved values before launch.
+
 
 
