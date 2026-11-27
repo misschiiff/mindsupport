@@ -7,8 +7,21 @@ export function validateBooking(values) {
   return "";
 }
 
+export function validateBookingStep(step, values) {
+  if (step === 1) {
+    if (!["online", "in-person", "either"].includes(values.format)) return "Choose online, in person, or either.";
+    return "";
+  }
+  if (step === 2) {
+    if (!String(values.availability ?? "").trim()) return "Choose a time of day that works for you.";
+    return "";
+  }
+  if (step === 3) return validateBooking(values);
+  return "Choose a valid step in the booking form.";
+}
+
 export function validateAnonymousMessage(values) {
   if (String(values.message ?? "").trim().length < 10) return "A few more words would help us understand what you’d like to share. You can keep it brief.";
-  if (!values.anonymousConsent) return "Please confirm you understand how this anonymous message works.";
+  if (!values.publishConsent) return "Please agree to publication before sending your anonymous message.";
   return "";
 }

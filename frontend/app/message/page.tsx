@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { MessageForm } from "../components/message-form";
-import { SiteHeader } from "../components/site-header";
+import { HelpTip } from "../components/help-tip";
 
-export const metadata = { title: "Leave an anonymous message | Mindsupport", description: "A private, low-pressure first step. No name or email needed." };
+
+export const metadata = { title: "Send an anonymous message | Mindsupport", description: "Send an anonymous message for publication on Mindsupport’s official social media. Requesting an email or social media reply is optional." };
 
 export default function MessagePage() {
-  return <main className="subpage message-page"><SiteHeader /><div className="message-layout"><section className="message-intro"><Link className="back-link" href="/"><span>←</span> Back to home</Link><div className="section-label">WORDS WHEN YOU’RE READY</div><h1>Start anywhere.<br/><em>It can be anonymous.</em></h1><p>You don’t need to find the perfect words. Leave a thought, a question, or a little about what has been on your mind.</p><div className="message-promise"><span>✳</span><div><b>No name or email needed</b><small>You decide what to share and when.</small></div></div><div className="message-promise"><span>♡</span><div><b>No pressure to book</b><small>This can simply be a first step.</small></div></div></section><MessageForm/></div><footer className="subpage-footer">Mindsupport Psychotherapy Ltd <span>·</span> <Link href="/book">Would you prefer a free call?</Link></footer></main>;
+  return <main className="subpage message-page"><div className="message-layout"><section className="message-intro"><Link className="back-link" href="/"><span>←</span> Back to home</Link><div className="section-label help-label">A PRIVATE FIRST STEP <HelpTip label="Anonymous messages">Write without entering your name or email. Before you send, you’ll see the publication consent so you can understand how messages may be shared.</HelpTip></div><h1>Say what’s<br/>on your mind.</h1><p>Share only what feels comfortable. You don’t need to leave your name or email.</p></section><MessageForm/></div><footer className="subpage-footer">Mindsupport Psychotherapy Ltd <span>·</span> <Link href="/book">Would you prefer a free call?</Link></footer></main>;
 }

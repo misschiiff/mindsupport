@@ -24,7 +24,7 @@ Open `http://localhost:3000`. The WIP tracker is at `http://localhost:3000/work-
 - `/manager` — practice manager dashboard layout, using fictional records only
 - `/work-in-progress` — build status and review links
 
-Current forms are frontend-only. They do not send or save information; use sample data while reviewing. The tracker and expanded handoff notes are in [WORK_IN_PROGRESS.md](./WORK_IN_PROGRESS.md).
+Current forms are frontend-only. They save fictional demo data to this browser's local storage; they do not send it to a server. Do not use real client information. The tracker and expanded backend/security handoff are in [WORK_IN_PROGRESS.md](./WORK_IN_PROGRESS.md) and [BACKEND_INTEGRATION.md](./BACKEND_INTEGRATION.md).
 
 ## Checks
 
@@ -37,4 +37,4 @@ pnpm build
 
 ## Preview deployment
 
-To preview independently on Vercel, configure a separate preview project or branch deployment with the project root set to `frontend`. Keep the existing production project and custom domain pointed at the root prototype until the full PRD scope is complete, backend integration and security review are finished, and production cutover is explicitly approved.
+The current target is Vercel for this Next.js frontend, with the project root set to `frontend`. The current architecture pairs it with the Express API and PostgreSQL hosted on Railway and Paystack for payments. Store frontend-only public configuration in Vercel environment variables; keep database URLs and Paystack secret keys only in the Railway backend environment. Never use a `NEXT_PUBLIC_` variable for a secret. Keep the existing production project and custom domain pointed at the root prototype until the PRD scope, backend integration and security review are complete and production cutover is explicitly approved.
