@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BookingStatus {
+  REQUESTED
+  SLOT_HELD
+  AWAITING_PAYMENT
+  PAYMENT_PENDING
+  CONFIRMED
+  NEEDS_SCHEDULING
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  INITIALIZING
+  PENDING
+  VERIFYING
+  PAID
+  FAILED
+  EXPIRED
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum RegistrationStatus {
+  AWAITING_PAYMENT
+  PAYMENT_PENDING
+  ACTIVE
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum SlotStatus {
+  AVAILABLE
+  HELD
+  BOOKED
+  BLOCKED
+}
+
+enum MessageStatus {
+  NEW
+  REVIEWED
+  PUBLISHED
+  DECLINED
+}
+
+enum StaffRole {
+  ADMIN
+  STAFF
+}
+
+model Lead {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @db.VarChar(100)
+  email      String    @db.VarChar(254)
+  phone      String?   @db.VarChar(40)
+  source     String    @db.VarChar(80)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  bookings   Booking[]
+  registrations Registration[]
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+model AppointmentSlot {
+  id          String     @id @default(uuid()) @db.Uuid
+  clinicianId String     @db.Uuid
+  startsAt    DateTime   @db.Timestamptz(6)
+  endsAt      DateTime   @db.Timestamptz(6)
+  status      SlotStatus @default(AVAILABLE)
+  holdExpiresAt DateTime? @db.Timestamptz(6)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
+  booking     Booking?
+
+  @@unique([clinicianId, startsAt])
+  @@index([status, startsAt])
+  @@index([holdExpiresAt])
+}
+
+model Booking {
+  id             String        @id @default(uuid()) @db.Uuid
+  leadId         String        @db.Uuid
+  slotId         String?       @unique @db.Uuid
+  creditRegistrationId String? @db.Uuid
+  creditReservedAt DateTime?   @db.Timestamptz(6)
+  creditAppliedAt DateTime?    @db.Timestamptz(6)
+  service        String        @db.VarChar(120)
+  durationMinutes Int
+  amountKobo     Int
+  currency       String        @default("NGN") @db.VarChar(3)
+  status         BookingStatus @default(REQUESTED)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+  lead           Lead          @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  slot           AppointmentSlot? @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  creditRegistration Registration? @relation("BookingCredit", fields: [creditRegistrationId], references: [id], onDelete: Restrict)
+  payments       PaymentAttempt[]
+
+  @@index([leadId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Registration {
+  id                    String             @id @default(uuid()) @db.Uuid
+  leadId                String             @db.Uuid
+  term                  String             @db.VarChar(24)
+  amountKobo            Int
+  currency              String             @default("NGN") @db.VarChar(3)
+  status                RegistrationStatus @default(AWAITING_PAYMENT)
+  freeSessionsGranted   Int                @default(0)
+  freeSessionsRemaining Int                @default(0)
+  startsAt              DateTime?          @db.Timestamptz(6)
+  endsAt                DateTime?          @db.Timestamptz(6)
+  createdAt             DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime           @updatedAt @db.Timestamptz(6)
+  lead                  Lead               @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  payments              PaymentAttempt[]
+  creditBookings        Booking[]           @relation("BookingCredit")
+
+  @@index([leadId, status])
+}
+
+model PaymentAttempt {
+  id              String        @id @default(uuid()) @db.Uuid
+  bookingId       String?       @db.Uuid
+  registrationId  String?       @db.Uuid
+  provider        String        @default("paystack") @db.VarChar(24)
+  providerReference String      @unique @db.VarChar(100)
+  amountKobo      Int
+  currency        String        @default("NGN") @db.VarChar(3)
+  status          PaymentStatus @default(INITIALIZING)
+  checkoutUrl     String?
+  failureCode     String?       @db.VarChar(80)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(6)
+  booking         Booking?      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  registration    Registration? @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, status])
+  @@index([registrationId, status])
+}
+
+model IdempotencyRecord {
+  id          String   @id @default(uuid()) @db.Uuid
+  scope       String   @db.VarChar(80)
+  key         String   @db.VarChar(128)
+  requestHash String   @db.Char(64)
+  resourceId  String?  @db.Uuid
+  response    Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt   DateTime @db.Timestamptz(6)
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+}
+
+model PaymentWebhookEvent {
+  id                String   @id @default(uuid()) @db.Uuid
+  provider          String   @default("paystack") @db.VarChar(24)
+  providerEventId   String   @unique @db.VarChar(120)
+  providerReference String   @db.VarChar(100)
+  payloadHash       String   @db.Char(64)
+  processedAt       DateTime? @db.Timestamptz(6)
+  receivedAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([providerReference])
+}
+
+model AnonymousMessage {
+  id             String        @id @default(uuid()) @db.Uuid
+  text           String        @db.VarChar(2000)
+  campaignSource String?       @db.VarChar(80)
+  publishConsent Boolean
+  consentAt      DateTime      @db.Timestamptz(6)
+  status         MessageStatus @default(NEW)
+  reflectionText String?       @db.VarChar(2000)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+  likes          ReflectionLike[]
+
+  // Intentionally excludes sender contact, subscriber relation, and IP data.
+  @@index([status, createdAt])
+}
+
+model Subscriber {
+  id          String   @id @default(uuid()) @db.Uuid
+  email       String   @unique @db.VarChar(254)
+  source      String   @db.VarChar(40)
+  consentGiven Boolean
+  consentAt   DateTime @db.Timestamptz(6)
+  unsubscribedAt DateTime? @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model ReflectionLike {
+  id        String   @id @default(uuid()) @db.Uuid
+  messageId String   @db.Uuid
+  visitorKeyHash String @db.Char(64)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  message   AnonymousMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, visitorKeyHash])
+  @@index([messageId, createdAt])
+}
+
+model AdminUser {
+  id                 String   @id @default(uuid()) @db.Uuid
+  email              String   @unique @db.VarChar(254)
+  passwordHash       String   @db.VarChar(255)
+  mfaEnabled          Boolean  @default(false)
+  mfaSecretEncrypted String?
+  active              Boolean  @default(true)
+  role                StaffRole @default(ADMIN)
+  failedLoginCount    Int      @default(0)
+  lockedUntil         DateTime? @db.Timestamptz(6)
+  lastLoginAt         DateTime? @db.Timestamptz(6)
+  createdAt           DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @db.Timestamptz(6)
+  sessions            AdminSession[]
+}
+
+model AdminSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique @db.Char(64)
+  expiresAt DateTime @db.Timestamptz(6)
+  revokedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String   @db.VarChar(80)
+  entityType String   @db.VarChar(40)
+  entityId   String?  @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId, createdAt])
+}

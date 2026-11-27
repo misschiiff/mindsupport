@@ -30,7 +30,9 @@ New demo records are stored in this browser’s local storage so the visitor flo
 
 ## Production readiness
 
-This is not the production application. The PRD’s Next.js, Node/Express, PostgreSQL/Prisma, Google Apps Script, and Paystack services are not implemented. The dashboard simulates those workflows with local demo data. Admin access is intentionally open in this preview and is not protected by a production login.
+This is not the production application. The separate Next.js frontend is in `frontend/`. The Express/PostgreSQL/Prisma backend foundation is in `backend/`; it now has staff login/session endpoints and generated migrations, but no connected database, booking/payment endpoints, Paystack transactions, or Cloudflare deployment. The dashboard in this root prototype simulates workflows with local demo data. Admin access is intentionally open here and is not protected by a production login.
+
+Current deployment target: Vercel for the Next.js frontend; Railway for the Express API and PostgreSQL; Paystack for payments; Resend for transactional email; and Google Apps Script/Sheets as the downstream wholesale ledger. Database and provider credentials belong only in the Railway backend environment. After the backend verifies a payment and commits the booking/registration, it will relay the paid record to Google Sheets. PostgreSQL remains the source of truth; email delivery and sheet exports must not establish payment status. See [`backend/README.md`](./backend/README.md) and [`frontend/BACKEND_INTEGRATION.md`](./frontend/BACKEND_INTEGRATION.md) for the implementation boundaries. In particular, the browser must not claim payment or booking success based on a redirect; the server must verify provider state and commit slot/payment/credit changes atomically.
 
 The PRD describes anonymous messages without identity/IP markers and separately asks for client IP collection for leads. Agree the real privacy, consent, retention, access, and publication rules before implementing the backend. Clinician credentials, service location, pricing, appointment availability, and business contact details also need firm-approved values before launch.
 
