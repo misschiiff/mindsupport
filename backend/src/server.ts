@@ -7,6 +7,9 @@ import cookieParser from "cookie-parser";
 import { z } from "zod";
 import { createAuthRouter } from "./auth.js";
 import { prisma } from "./db.js";
+import { createPublicRouter, publicApiErrorHandler } from "./public-api.js";
+import { createAdminRouter, adminApiErrorHandler } from "./admin-api.js";
+import { startEmailOutboxWorker } from "./email-outbox.js";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -76,10 +79,14 @@ const authLimiter = rateLimit({
   message: { error: "Unable to sign in right now. Try again later." },
 });
 app.use("/api/auth", authLimiter, authRouter);
+app.use("/api/public", createPublicRouter({ secureCookie: env.COOKIE_SECURE === "true", sameSite: env.COOKIE_SAME_SITE }));
+app.use("/api/admin", createAdminRouter(authConfig));
+app.use("/api/admin", adminApiErrorHandler);
 app.use("/api", (_request, response) => response.status(404).json({ error: "Route not found" }));
 
-app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
+app.use((error: unknown, request: express.Request, response: express.Response, _next: express.NextFunction) => {
   if (error instanceof SyntaxError) return response.status(400).json({ error: "Invalid request body" });
+  if (request.path.startsWith("/api/public/")) return publicApiErrorHandler(error, request, response);
   console.error("Unhandled request error");
   return response.status(500).json({ error: "An unexpected error occurred" });
 });
@@ -87,6 +94,7 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
 const server = app.listen(env.PORT, "0.0.0.0", () => {
   console.info(`Mindsupport API listening on port ${env.PORT}`);
 });
+startEmailOutboxWorker();
 
 async function shutdown(signal: string) {
   console.info(`Received ${signal}; closing API connections.`);

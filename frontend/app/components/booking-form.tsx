@@ -3,17 +3,20 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Icon } from "./ui-icon";
 import { validateBookingStep } from "../lib/form-validation.mjs";
-import { Booking, Lead, makeId, readDemoData, writeDemoData } from "../lib/demo-store";
+import { createRequestKey, postPublicApi } from "../lib/api-client";
+import { HoneypotField, TurnstileWidget } from "./turnstile-widget";
 
 const TOTAL_STEPS = 3;
 
 export function BookingForm() {
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const submittingRef = useRef(false);
+  const requestKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (step === 1) return;
@@ -22,7 +25,7 @@ export function BookingForm() {
     heading?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [step]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const validationError = validateBookingStep(step, {
@@ -46,15 +49,31 @@ export function BookingForm() {
       setIsSubmitting(false);
       return;
     }
-    const name = String(data.get("name") ?? "").trim();
-    const email = String(data.get("email") ?? "").trim().toLowerCase();
-    const current = readDemoData();
-    const lead: Lead = { id: makeId("LEAD"), name, email, phone: "", source: "Free call request", createdAt: new Date().toISOString() };
-    const booking: Booking = { id: makeId("BOOK"), leadId: lead.id, service: "Free discovery call · 15 min", date: "", amount: 0, status: "Needs scheduling", paymentStatus: "Not requested" };
-    setSaved(writeDemoData({ ...current, leads: [lead, ...current.leads], bookings: [booking, ...current.bookings] }));
-    setSubmitted(true);
-    submittingRef.current = false;
-    setIsSubmitting(false);
+    const requestKey = requestKeyRef.current ?? createRequestKey();
+    requestKeyRef.current = requestKey;
+    try {
+      await postPublicApi("free-call", {
+        name: String(data.get("name") ?? "").trim(),
+        email: String(data.get("email") ?? "").trim().toLowerCase(),
+        format: String(data.get("format") ?? ""),
+        availability: String(data.get("availability") ?? ""),
+        preferredDay: String(data.get("date") ?? ""),
+        circumstances: data.getAll("circumstances").map(String).filter(Boolean),
+        contactConsent: data.get("consent") === "on",
+        turnstileToken,
+        website: String(data.get("website") ?? ""),
+      }, requestKey);
+      setError("");
+      setSubmitted(true);
+      requestKeyRef.current = null;
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "We couldn’t submit your request. Please try again.");
+      setTurnstileToken("");
+      setTurnstileResetKey((value) => value + 1);
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   }
 
   function goBack() {
@@ -62,9 +81,9 @@ export function BookingForm() {
     setStep((current) => Math.max(1, current - 1));
   }
 
-  if (submitted) return <div className="success-card" role="status"><span className="success-mark"><Icon name={saved ? "check" : "shield"} size={27}/></span><div className="section-label">{saved ? "PREVIEW REQUEST SAVED" : "PREVIEW REQUEST NOT SAVED"}</div><h2>{saved ? <>Thanks for taking<br/><em>that first step.</em></> : <>We couldn’t save<br/><em>this preview.</em></>}</h2><p>{saved ? "Your fictional details were added to this browser’s manager demo. This is not a confirmed appointment: no date was reserved, and nothing was sent to a server or email." : "This browser could not save your demo request. Nothing was sent to a server or email. Please try again."} Use fictional details only until secure booking storage is connected.</p><button className="button button-primary" type="button" onClick={() => { setSubmitted(false); setSaved(false); setStep(1); }}>Back to the form</button></div>;
+  if (submitted) return <div className="success-card" role="status"><span className="success-mark"><Icon name="check" size={27}/></span><div className="section-label">REQUEST RECEIVED</div><h2>Thanks for taking<br/><em>that first step.</em></h2><p>Your request has been recorded and a confirmation email is on its way. The team will contact you to agree a time; no appointment is confirmed until we do.</p><button className="button button-primary" type="button" onClick={() => { setSubmitted(false); setStep(1); setTurnstileToken(""); }}>Back to the form</button></div>;
 
-  return <form className="form-card booking-form" onSubmit={handleSubmit} noValidate>
+  return <form className="form-card booking-form" onSubmit={handleSubmit} noValidate onChange={() => { if (error) { setError(""); requestKeyRef.current = null; } }}>
     <div className="form-heading"><span className="step-count" aria-live="polite">Step {step} of {TOTAL_STEPS}</span></div>
     <div className="booking-progress" role="progressbar" aria-label={`Step ${step} of ${TOTAL_STEPS}`} aria-valuemin={1} aria-valuemax={TOTAL_STEPS} aria-valuenow={step}><span style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}/></div>
     <p className="form-intro">Request a free 15-minute introductory call.</p>
@@ -90,8 +109,12 @@ export function BookingForm() {
       <label className="field-label" htmlFor="name">What should we call you? <span>*</span></label><input id="name" name="name" autoComplete="name" placeholder="Your name" required/>
       <label className="field-label" htmlFor="email">Where can we reach you? <span>*</span></label><input id="email" name="email" type="email" autoComplete="email" placeholder="Email address" required/>
 
+      <details className="circumstances-details"><summary>Share a little about your circumstances <span>Optional</span></summary><p>Only share what you feel comfortable sharing. This helps the team understand what support may suit you.</p><fieldset><legend>Work or study</legend>{[["Employed", "employed"], ["Self-employed", "self-employed"], ["Studying", "studying"], ["Looking for work", "looking-for-work"], ["Caring for someone", "caring"], ["Retired", "retired"]].map(([label, value]) => <label key={value}><input type="checkbox" name="circumstances" value={value}/><span>{label}</span></label>)}</fieldset><fieldset><legend>Personal circumstances</legend>{[["Single", "single"], ["Married or partnered", "partnered"], ["Widowed", "widowed"], ["Orphaned or bereaved", "orphaned-bereaved"], ["Living with a disability", "disability"]].map(([label, value]) => <label key={value}><input type="checkbox" name="circumstances" value={value}/><span>{label}</span></label>)}</fieldset><small>You can leave this section blank or choose more than one.</small></details>
+
       <label className="consent"><input type="checkbox" name="consent" required/><span>I agree that Mindsupport may use my name and email to respond to this request.</span></label>
-      <p className="form-privacy"><Icon name="shield" size={16}/> Preview only: fictional name and email are added to this browser’s demo leads. Optional personal context is not stored.</p>
+      <p className="form-privacy"><Icon name="shield" size={16}/> Your contact details and optional circumstances are stored with your request so the team can follow up. They are not part of anonymous messages.</p>
+      <TurnstileWidget onToken={setTurnstileToken} resetKey={turnstileResetKey}/>
+      <HoneypotField/>
     </section>
 
     {error && <p role="alert" className="form-error">{error}</p>}

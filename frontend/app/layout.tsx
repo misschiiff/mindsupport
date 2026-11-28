@@ -3,29 +3,30 @@ import "./globals.css";
 import { SiteFrame } from "./components/site-frame";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.mindsupporthq.com"),
   title: {
-    default: "Mindsupport Psychotherapy | A Space to Talk",
+    default: "Psychotherapy and Counselling Support | Mindsupport",
     template: "%s | Mindsupport Psychotherapy",
   },
-  description: "Looking for someone to talk to? Mindsupport Psychotherapy offers a thoughtful space to explore support, online or in person, at your own pace.",
+  description: "Looking for someone to talk to? Mindsupport Psychotherapy offers thoughtful therapy and counselling support online or in person. Request a free first conversation.",
   applicationName: "Mindsupport Psychotherapy Ltd",
   openGraph: {
     type: "website",
     siteName: "Mindsupport Psychotherapy",
-    title: "Mindsupport Psychotherapy | A Space to Talk",
-    description: "A thoughtful space to explore therapy and find support at your own pace.",
+    title: "Psychotherapy and Counselling Support | Mindsupport",
+    description: "Thoughtful therapy and counselling support, online or in person. Start with a free first conversation and move at your own pace.",
     locale: "en_GB",
   },
   twitter: {
     card: "summary",
-    title: "Mindsupport Psychotherapy | A Space to Talk",
-    description: "A thoughtful space to explore therapy and find support at your own pace.",
+    title: "Psychotherapy and Counselling Support | Mindsupport",
+    description: "Thoughtful therapy and counselling support, online or in person. Start with a free first conversation and move at your own pace.",
   },
 };
 
 export default function RootLayout({ children, sheet }: Readonly<{ children: React.ReactNode; sheet: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body><SiteFrame sheet={sheet}>{children}</SiteFrame></body>
     </html>
   );

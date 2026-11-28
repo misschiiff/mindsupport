@@ -79,4 +79,18 @@ Frontend behavior to preserve: disable the submit control while a request is in 
 
 ## Current preview limits
 
-The frontend demo uses this browser's local storage so its form-to-manager interactions can be reviewed. It is not an acceptable production database or security boundary; other people with access to the browser profile can inspect or alter it. No real messages are published, emails sent, payments accepted, or staff authenticated by this frontend. Use fictional values only until the backend and privacy review are in place.
+The `/manager` dashboard still uses this browser's local storage and is not an acceptable production database or security boundary; other people with access to the browser profile can inspect or alter it. The new public form routes are not active on the live site until the frontend and backend changes are deployed and configured. No payment, welcome email, abandoned-checkout message, or real manager workflow is active yet.
+
+## Current connection work
+
+The visitor forms now call Railway API routes rather than writing visitor submissions to browser storage:
+
+- Free call requests create a lead and a 15-minute, no-charge booking request.
+- Direct session requests use server-owned tiers (₦10,000/50 minutes, ₦30,000/2 hours, ₦70,000/5 hours) and create a request without claiming payment or a reserved time.
+- Anonymous messages store only message text, public-sharing consent and coarse source; no sender contact, subscriber ID, or IP is stored with the message.
+- Reflections subscribers are stored separately, with coarse source and consent only. A welcome email is not yet sent.
+- Public reflections return only approved `reflectionText`; per-reflection likes use an HttpOnly visitor token and do not expose contact data.
+
+These code changes are not deployed to Railway or Vercel. The repository's local `DATABASE_URL` currently fails Prisma's PostgreSQL URL validation, so no migration has been applied from this workspace. The protected manager API and sign-in UI are implemented in source, but cannot be used until the API is deployed and the first staff account is bootstrapped. Paystack, Resend, Apps Script delivery, actual availability management and production operations still need implementation.
+
+To connect this phase, deploy the API from `/backend` with `pnpm build`, `pnpm start`, and pre-deploy `pnpm db:migrate:deploy`; set its `DATABASE_URL` to the private Railway Postgres reference, `FRONTEND_ORIGIN` to the exact live frontend origin, `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=none`, and the Turnstile secret. Generate public networking only on the API service. Then set `NEXT_PUBLIC_API_BASE_URL` and the public `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in Vercel and redeploy. Keep PostgreSQL private. See `../backend/README.md` for the detailed environment checklist.
