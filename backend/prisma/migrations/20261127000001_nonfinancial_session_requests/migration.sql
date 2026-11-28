@@ -1,0 +1,3 @@
+ALTER TABLE "Booking"
+  ALTER COLUMN "amountKobo" DROP NOT NULL,
+  ADD COLUMN "scheduledAt" TIMESTAMPTZ(6);

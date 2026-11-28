@@ -1,46 +1,41 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnonymousMessage, DEMO_CHANGE_EVENT, readDemoData } from "../lib/demo-store";
 import { Icon } from "./ui-icon";
 import { SubscriberSignup } from "./subscriber-signup";
 import { downloadReflectionImage } from "./reflection-share-card";
+import { getPublicApi, mutatePublicApi } from "../lib/api-client";
 
-type Engagement = Record<string, { likes: number; liked: boolean }>;
-const ENGAGEMENT_KEY = "mindsupport.reflection-engagement.v1";
+type Reflection = { id: string; text: string; createdAt?: string; likes: number; liked?: boolean; example?: boolean; category: string; footer: string };
 
-function readEngagement(): Engagement {
-  try {
-    const value = JSON.parse(window.localStorage.getItem(ENGAGEMENT_KEY) ?? "{}");
-    return value && typeof value === "object" ? value as Engagement : {};
-  } catch { return {}; }
-}
-
-function ReflectionActions({ id, text }: { id: string; text: string }) {
-  const [engagement, setEngagement] = useState({ likes: 0, liked: false });
+function ReflectionActions({ item }: { item: Reflection }) {
+  const [engagement, setEngagement] = useState({ likes: item.likes, liked: Boolean(item.liked) });
   const [notice, setNotice] = useState("");
+  const [pending, setPending] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => setEngagement(readEngagement()[id] ?? { likes: 0, liked: false }), 0);
-    return () => window.clearTimeout(timer);
-  }, [id]);
+    setEngagement({ likes: item.likes, liked: Boolean(item.liked) });
+  }, [item.likes, item.liked]);
 
-  function toggleLike() {
-    const all = readEngagement();
-    const current = all[id] ?? { likes: 0, liked: false };
-    const next = { likes: Math.max(0, current.likes + (current.liked ? -1 : 1)), liked: !current.liked };
-    const updated = { ...all, [id]: next };
-    try { window.localStorage.setItem(ENGAGEMENT_KEY, JSON.stringify(updated)); } catch { /* Keep the interaction available for this page view. */ }
-    setEngagement(next);
+  async function toggleLike() {
+    if (item.example || pending) return;
+    setPending(true);
+    try {
+      const result = await mutatePublicApi(`reflections/${encodeURIComponent(item.id)}/like`, { liked: !engagement.liked });
+      setEngagement({ likes: Number(result.likes) || 0, liked: Boolean(result.liked) });
+      setNotice("Your like has been saved.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Your like couldn’t be saved. Please try again.");
+    } finally { setPending(false); }
   }
 
   function download() {
     try {
-      downloadReflectionImage(text, id);
+      downloadReflectionImage(item.text, item.id);
       setNotice("Reflection downloaded as an image.");
     } catch { setNotice("This browser couldn’t create the image. Please try again."); }
   }
 
-  return <div className="reflection-actions"><button type="button" className={`reflection-action${engagement.liked ? " liked" : ""}`} aria-pressed={engagement.liked} aria-label={`${engagement.liked ? "Unlike" : "Like"} this reflection, ${engagement.likes} likes`} onClick={toggleLike}><Icon name="heart" size={16}/><span>{engagement.likes}</span></button><button type="button" className="reflection-action" onClick={download}><Icon name="download" size={16}/><span>Download</span></button>{notice && <span role="status" className="sr-only">{notice}</span>}</div>;
+  return <div className="reflection-actions"><button type="button" className={`reflection-action${engagement.liked ? " liked" : ""}`} aria-pressed={engagement.liked} aria-label={`${engagement.liked ? "Unlike" : "Like"} this reflection, ${engagement.likes} likes`} disabled={item.example || pending} onClick={() => void toggleLike()} title={item.example ? "Likes are available on shared reflections" : undefined}><Icon name="heart" size={16}/><span>{engagement.likes}</span></button><button type="button" className="reflection-action" onClick={download}><Icon name="download" size={16}/><span>Download</span></button>{notice && <span role="status" className="sr-only">{notice}</span>}</div>;
 }
 
 const examples = [
@@ -53,19 +48,25 @@ const examples = [
 ];
 
 export function ReflectionsFeed() {
-  const [published, setPublished] = useState<AnonymousMessage[]>([]);
+  const [published, setPublished] = useState<Reflection[]>([]);
+  const [feedError, setFeedError] = useState("");
   useEffect(() => {
-    const refresh = () => setPublished(readDemoData().messages.filter((item) => item.status === "Published" && item.reflectionText.trim()));
-    const timer = window.setTimeout(refresh, 0);
-    window.addEventListener(DEMO_CHANGE_EVENT, refresh);
-    window.addEventListener("storage", refresh);
-    return () => { window.clearTimeout(timer); window.removeEventListener(DEMO_CHANGE_EVENT, refresh); window.removeEventListener("storage", refresh); };
+    let active = true;
+    getPublicApi("reflections").then((result) => {
+      if (!active) return;
+      const values = Array.isArray(result.reflections) ? result.reflections as Array<Record<string, unknown>> : [];
+      setPublished(values.filter((item) => typeof item.id === "string" && typeof item.text === "string").map((item) => ({
+        id: String(item.id), text: String(item.text), createdAt: String(item.createdAt || ""),
+        likes: Number(item.likes) || 0, liked: Boolean(item.liked), category: "SHARED WITH CARE",
+        footer: "Reviewed by Mindsupport",
+      })));
+    }).catch((error: unknown) => {
+      if (active) setFeedError(error instanceof Error ? error.message : "Shared reflections couldn’t be loaded.");
+    });
+    return () => { active = false; };
   }, []);
 
-  const cards = [
-    ...published.map((item) => ({ id: item.id, category: "SHARED WITH CARE", text: item.reflectionText, footer: "Reviewed by Mindsupport" })),
-    ...examples,
-  ];
+  const cards: Reflection[] = [...published, ...examples.map((item) => ({ ...item, likes: 0, liked: false, example: true }))];
 
-  return <><div className="demo-label"><Icon name="shield" size={16}/> Clearly marked examples · Not submitted by visitors</div><div className="reflection-grid">{cards.map((item, index) => <div className="reflection-grid-item" key={item.id}><article className={`reflection-card reflection-card-${index % 3}`}><span>{item.category}</span><p>“{item.text}”</p><small>{item.footer}</small><div className="reflection-card-foot"><span>{item.category === "SHARED WITH CARE" ? "Shared anonymously" : "Illustrative example"}</span><ReflectionActions id={item.id} text={item.text}/></div></article>{(index + 1) % 6 === 0 && <SubscriberSignup/>}</div>)}</div><small className="reflection-engagement-note">Like counts in this preview are saved in this browser only. Shared counts need the backend.</small></>;
+  return <><div className="demo-label"><Icon name="shield" size={16}/> Anonymous messages appear only after review and approval.</div>{feedError && <p className="reflection-feed-notice" role="status">{feedError} Showing illustrative examples for now.</p>}<div className="reflection-grid">{cards.map((item, index) => <div className="reflection-grid-item" key={item.id}><article className={`reflection-card reflection-card-${index % 3}`}><span>{item.category}</span><p>“{item.text}”</p><small>{item.footer}</small><div className="reflection-card-foot"><span>{item.example ? "Illustrative example" : "Shared anonymously"}</span><ReflectionActions item={item}/></div></article>{(index + 1) % 6 === 0 && <SubscriberSignup/>}</div>)}</div><small className="reflection-engagement-note">Likes on shared reflections are stored as anonymous per-reflection counts. Example cards are not tracked.</small></>;
 }

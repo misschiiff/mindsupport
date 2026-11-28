@@ -7,7 +7,7 @@ import { HelpTip } from "./components/help-tip";
 
 export const metadata = {
   title: "Psychotherapy & Counselling Support | Mindsupport",
-  description: "Looking for someone to talk to? Explore thoughtful psychotherapy support online or in person. Start with a free discovery call, at your own pace.",
+  description: "Looking for someone to talk to? Mindsupport offers thoughtful psychotherapy and counselling support online or in person. Request a free discovery call at your own pace.",
   alternates: { canonical: "/" },
 };
 

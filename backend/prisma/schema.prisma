@@ -58,15 +58,29 @@ enum StaffRole {
   STAFF
 }
 
+enum EmailDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
 model Lead {
-  id         String    @id @default(uuid()) @db.Uuid
-  name       String    @db.VarChar(100)
-  email      String    @db.VarChar(254)
-  phone      String?   @db.VarChar(40)
-  source     String    @db.VarChar(80)
-  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
-  bookings   Booking[]
+  id                   String    @id @default(uuid()) @db.Uuid
+  name                 String    @db.VarChar(100)
+  email                String    @db.VarChar(254)
+  phone                String?   @db.VarChar(40)
+  source               String    @db.VarChar(80)
+  preferredFormat      String?   @db.VarChar(24)
+  availability         String?   @db.VarChar(40)
+  preferredDay         String?   @db.VarChar(16)
+  circumstances        Json?
+  contactConsent       Boolean   @default(false)
+  contactConsentAt     DateTime? @db.Timestamptz(6)
+  createdAt            DateTime  @default(now()) @db.Timestamptz(6)
+  bookings             Booking[]
   registrations Registration[]
+  emails               OutboundEmail[]
 
   @@index([email])
   @@index([createdAt])
@@ -96,18 +110,44 @@ model Booking {
   creditAppliedAt DateTime?    @db.Timestamptz(6)
   service        String        @db.VarChar(120)
   durationMinutes Int
-  amountKobo     Int
+  amountKobo     Int?
   currency       String        @default("NGN") @db.VarChar(3)
   status         BookingStatus @default(REQUESTED)
+  scheduledAt    DateTime?     @db.Timestamptz(6)
   createdAt      DateTime      @default(now()) @db.Timestamptz(6)
   updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
   lead           Lead          @relation(fields: [leadId], references: [id], onDelete: Restrict)
   slot           AppointmentSlot? @relation(fields: [slotId], references: [id], onDelete: Restrict)
   creditRegistration Registration? @relation("BookingCredit", fields: [creditRegistrationId], references: [id], onDelete: Restrict)
   payments       PaymentAttempt[]
+  emails         OutboundEmail[]
 
   @@index([leadId, createdAt])
   @@index([status, createdAt])
+}
+
+model OutboundEmail {
+  id              String             @id @default(uuid()) @db.Uuid
+  leadId          String             @db.Uuid
+  bookingId       String?            @db.Uuid
+  toEmail         String             @db.VarChar(254)
+  idempotencyKey  String             @unique @db.VarChar(256)
+  category        String             @db.VarChar(32)
+  subject         String             @db.VarChar(160)
+  textBody        String             @db.Text
+  status          EmailDeliveryStatus @default(PENDING)
+  attemptCount    Int                @default(0)
+  nextAttemptAt   DateTime           @default(now()) @db.Timestamptz(6)
+  lastAttemptAt   DateTime?          @db.Timestamptz(6)
+  sentAt          DateTime?          @db.Timestamptz(6)
+  lastErrorCode   String?            @db.VarChar(80)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
+  lead            Lead               @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  booking         Booking?           @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([status, nextAttemptAt])
+  @@index([leadId, createdAt])
 }
 
 model Registration {

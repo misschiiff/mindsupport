@@ -2,10 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import type { KeyboardEvent, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 export function RouteSheet({ title, children, onClose }: { title: string; children: ReactNode; onClose?: () => void }) {
   const router = useRouter();
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   const [closing, setClosing] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -13,6 +15,7 @@ export function RouteSheet({ title, children, onClose }: { title: string; childr
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (!mounted) return;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const oldOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -46,7 +49,7 @@ export function RouteSheet({ title, children, onClose }: { title: string; childr
     };
     // The open sheet installs one keyboard and focus boundary for its lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mounted]);
 
   function close() {
     if (closing) return;
@@ -58,11 +61,13 @@ export function RouteSheet({ title, children, onClose }: { title: string; childr
     if (event.key === "Enter" && event.target === event.currentTarget) close();
   }
 
-  return <>
+  if (!mounted) return null;
+
+  return createPortal(<>
     <button className={`route-sheet-dim${closing ? " is-closing" : ""}`} type="button" tabIndex={-1} aria-label="Close sheet" onClick={close}/>
     <section className={`route-sheet${closing ? " is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="route-sheet-title" ref={dialogRef} onKeyDown={handleKeyDown}>
       <header className="route-sheet-head"><h2 className="route-sheet-title" id="route-sheet-title">{title}</h2><button className="route-sheet-close" type="button" aria-label="Close" ref={closeRef} onClick={close}>×</button></header>
       <div className="route-sheet-scroll"><div className="route-sheet-content">{children}</div></div>
     </section>
-  </>;
+  </>, document.body);
 }
